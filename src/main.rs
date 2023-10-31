@@ -1,5 +1,7 @@
 use std::time::Instant;
 use std::collections::VecDeque;
+use std::iter::Chain;
+use std::slice::Iter;
 
 // A "filter" (nothing official here, just sounds good to me) is a sequence of
 // multiples of some prime. In the Sieve of Eratosthenes, it's the sequence of
@@ -36,12 +38,129 @@ impl Filter {
     }
 }
 
-// The Primes struct is an iterator over prime numbers. It maintains a list of
+// Naively we'd check every integer. But we can avoid checking even numbers by
+// instead adding 2 at each step. To also avoid checking multiples of 3, we'd
+// alternate adding 2 and 4.
+//
+// This is called a _wheel_ of size 2, with the pattern [2, 4]. We can
+// generalize this to wheels of size n, with the pattern [2, 4, 2, 4, 6, 2...]
+//
+// At a point there are dimishing returns to increasing the size of the wheel,
+// because prime number become less dense. But for small wheels, the speedup is
+// significant.
+//
+// We use a wheel of size 48, which allows us to avoid checking multiples of 2,
+// 3, 5, and 7.
+const WHEEL_STATES: [u64; 48] = 
+    [ 2, 4, 2, 4, 6, 2, 6, 4, 2,  4, 6,  6
+    , 2, 6, 4, 2, 6, 4, 6, 8, 4,  2, 4,  2
+    , 4, 8, 6, 4, 6, 2, 4, 6, 2,  6, 6,  4
+    , 2, 4, 6, 2, 6, 4, 2, 4, 2, 10, 2, 10];
+
+struct Wheel {
+    index: usize,
+    state: u64
+}
+
+impl Wheel {
+    fn new() -> Wheel {
+        Wheel {
+            index: 47,
+            state: 1
+        }
+    }
+
+    fn next(&mut self) -> u64 {
+        self.state += WHEEL_STATES[self.index];
+
+        if self.index == 47 {
+            self.index = 0;
+        } else {
+            self.index += 1;
+        }
+
+        self.state
+    }
+}
+
+const SMALL_PRIMES: [u64; 4] = [2, 3, 5, 7];
+
+// The UnsmallPrimes struct is an iterator over prime numbers. It maintains a list of
 // active filters, and a queue of filters (really a VecDeque) that are waiting
 // to be activated. 
 //
 // This queue is helpful because it's inefficient to constantly search a filter
 // we know won't be useful until we're at the square of its base
+struct UnsmallPrimes {
+    state: Wheel,
+    active_filters: Vec<Filter>,
+    queued_filters: VecDeque<Filter>,
+}
+
+
+impl UnsmallPrimes {
+    pub fn new() -> UnsmallPrimes {
+        UnsmallPrimes {
+            state: Wheel::new(),
+            active_filters: Vec::new(),
+            queued_filters: VecDeque::new()
+        }
+    }
+
+    fn step(&mut self) -> Option<u64> {
+        let n = self.state.next();
+        
+        // If any active filter matches, we're not prime
+        if self.active_filters.iter_mut().any(|f| f.query(n)) {
+            return None;
+        }
+
+        // If the next queued filter is ready, activate it
+        if n == self.queued_filters.front().map(|f| f.state).unwrap_or(0) {
+            self.active_filters
+                .push(self.queued_filters.pop_front().unwrap());
+            return None;
+        }
+
+        // If we reach this point, we know we're at a prime number. So queue a
+        // new filter and return a Some
+        self.queued_filters.push_back(Filter::new(n));
+        Some(n)
+    }
+}
+
+impl Iterator for UnsmallPrimes {
+    type Item = u64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let None = self.step() {}
+        Some(self.state.state)
+    }
+}
+
+// struct Primes {}
+
+// impl Primes {
+//     fn new() -> Primes {
+//         Primes {}
+//     }
+// }
+
+// impl IntoIterator for Primes {
+//     type Item = u64;
+//     type IntoIter = Chain<UnsmallPrimes, std::slice::Iter<'static, u64>>;
+
+//     fn into_iter(self) -> Self::IntoIter {
+//         SMALL_PRIMES.chain(UnsmallPrimes::new())
+//     }
+// }
+
+
+
+
+
+
+
 struct Primes {
     active_filters: Vec<Filter>,
     queued_filters: VecDeque<Filter>,
@@ -59,7 +178,7 @@ impl Primes {
 
     fn step(&mut self) -> Option<u64> {
         // Increment by 2, since there's no point in checking even numbers
-        self.state += 2;
+        self.state += 1;
         
         // If any active filter matches, we're not prime
         if self.active_filters.iter_mut().any(|f| f.query(self.state)) {
@@ -89,9 +208,18 @@ impl Iterator for Primes {
     }
 }
 
+
+
+
 fn main() {
+    let mut unsmall = &mut UnsmallPrimes::new();
     let now = Instant::now();
-    let primes = &mut Primes::new();
+    let mut primes = &mut SMALL_PRIMES.into_iter().chain(unsmall);
+    // let true_primes = &mut Primes::new();
+
+
+    // let primes = &mut UnsmallPrimes::new();
+
     let p = primes.skip(999999).next().unwrap();
     let t = now.elapsed().as_millis();
     println!("Millionth prime: {}", p);
