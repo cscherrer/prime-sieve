@@ -58,7 +58,8 @@ impl Primes {
     }
 
     fn step(&mut self) -> Option<u64> {
-        self.state += 1;
+        // Increment by 2, since there's no point in checking even numbers
+        self.state += 2;
         
         // If any active filter matches, we're not prime
         if self.active_filters.iter_mut().any(|f| f.query(self.state)) {
