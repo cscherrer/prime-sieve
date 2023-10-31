@@ -1,7 +1,5 @@
 use std::time::Instant;
 use std::collections::VecDeque;
-use std::iter::Chain;
-use std::slice::Iter;
 
 // A "filter" (nothing official here, just sounds good to me) is a sequence of
 // multiples of some prime. In the Sieve of Eratosthenes, it's the sequence of
@@ -20,7 +18,7 @@ impl Filter {
     // smaller prime. So we start there.
     fn new(base: u64) -> Filter {
         Filter {
-            base: base,
+            base,
             state: base * base,
         }
     }
@@ -85,22 +83,22 @@ impl Wheel {
 
 const SMALL_PRIMES: [u64; 4] = [2, 3, 5, 7];
 
-// The UnsmallPrimes struct is an iterator over prime numbers. It maintains a list of
+// The BiggerPrimes struct is an iterator over prime numbers. It maintains a list of
 // active filters, and a queue of filters (really a VecDeque) that are waiting
 // to be activated. 
 //
 // This queue is helpful because it's inefficient to constantly search a filter
 // we know won't be useful until we're at the square of its base
-struct UnsmallPrimes {
+struct BiggerPrimes {
     state: Wheel,
     active_filters: Vec<Filter>,
     queued_filters: VecDeque<Filter>,
 }
 
 
-impl UnsmallPrimes {
-    pub fn new() -> UnsmallPrimes {
-        UnsmallPrimes {
+impl BiggerPrimes {
+    pub fn new() -> BiggerPrimes {
+        BiggerPrimes {
             state: Wheel::new(),
             active_filters: Vec::new(),
             queued_filters: VecDeque::new()
@@ -129,73 +127,26 @@ impl UnsmallPrimes {
     }
 }
 
-impl Iterator for UnsmallPrimes {
+impl Iterator for BiggerPrimes {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let None = self.step() {}
+        while self.step().is_none() {}
         Some(self.state.state)
     }
 }
 
-// struct Primes {}
-
-// impl Primes {
-//     fn new() -> Primes {
-//         Primes {}
-//     }
-// }
-
-// impl IntoIterator for Primes {
-//     type Item = u64;
-//     type IntoIter = Chain<UnsmallPrimes, std::slice::Iter<'static, u64>>;
-
-//     fn into_iter(self) -> Self::IntoIter {
-//         SMALL_PRIMES.chain(UnsmallPrimes::new())
-//     }
-// }
-
-
-
-
-
-
-
 struct Primes {
-    active_filters: Vec<Filter>,
-    queued_filters: VecDeque<Filter>,
-    state: u64,
+    small_primes: std::slice::Iter<'static, u64>,
+    bigger_primes: BiggerPrimes,
 }
 
 impl Primes {
     fn new() -> Primes {
         Primes {
-            active_filters: Vec::new(),
-            queued_filters: VecDeque::new(),
-            state: 1,
+            small_primes: SMALL_PRIMES.iter(),
+            bigger_primes: BiggerPrimes::new(),
         }
-    }
-
-    fn step(&mut self) -> Option<u64> {
-        // Increment by 2, since there's no point in checking even numbers
-        self.state += 1;
-        
-        // If any active filter matches, we're not prime
-        if self.active_filters.iter_mut().any(|f| f.query(self.state)) {
-            return None;
-        }
-
-        // If the next queued filter is ready, activate it
-        if self.state == self.queued_filters.front().map(|f| f.state).unwrap_or(0) {
-            self.active_filters
-                .push(self.queued_filters.pop_front().unwrap());
-            return None;
-        }
-
-        // If we reach this point, we know we're at a prime number. So queue a
-        // new filter and return a Some
-        self.queued_filters.push_back(Filter::new(self.state));
-        Some(self.state)
     }
 }
 
@@ -203,24 +154,18 @@ impl Iterator for Primes {
     type Item = u64;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let None = self.step() {}
-        Some(self.state)
+        if let Some(&prime) = self.small_primes.next() {
+            Some(prime)
+        } else {
+            self.bigger_primes.next()
+        }
     }
 }
 
-
-
-
 fn main() {
-    let mut unsmall = &mut UnsmallPrimes::new();
+    let primes = &mut Primes::new();
     let now = Instant::now();
-    let mut primes = &mut SMALL_PRIMES.into_iter().chain(unsmall);
-    // let true_primes = &mut Primes::new();
-
-
-    // let primes = &mut UnsmallPrimes::new();
-
-    let p = primes.skip(999999).next().unwrap();
+    let p = primes.nth(999999).unwrap();
     let t = now.elapsed().as_millis();
     println!("Millionth prime: {}", p);
     println!("Compute time:    {}ms", t);
