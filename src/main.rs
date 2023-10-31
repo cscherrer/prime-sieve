@@ -1,3 +1,5 @@
+// use rayon::prelude::*;
+
 struct Filter {
     base: u64,
     state: u64
@@ -47,6 +49,16 @@ impl Primes {
         self.filters.push(Filter::new(self.state));
         Some(self.state)
     }
+
+    // // Here's an alternative to check filters in parallel using the rayon crate.
+    // fn step(&mut self) -> Option<u64> {
+    //     self.state += 1;
+    //     if self.filters.par_iter_mut().any(|f|{  f.query(self.state)}) {
+    //         return None;
+    //     }
+    //     self.filters.push(Filter::new(self.state));
+    //     Some(self.state)
+    // }
 }
 
 impl Iterator for Primes {
@@ -60,7 +72,7 @@ impl Iterator for Primes {
 
 fn main() {
     let primes = Primes::new();
-    for p in primes.take(100) {
+    for p in primes.skip(999).take(1) {
         println!("{}", p);
     }
 }
