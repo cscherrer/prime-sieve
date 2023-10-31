@@ -1,3 +1,4 @@
+use std::time::Instant;
 use std::collections::VecDeque;
 
 // A "filter" (nothing official here, just sounds good to me) is a sequence of
@@ -88,8 +89,10 @@ impl Iterator for Primes {
 }
 
 fn main() {
-    let primes = Primes::new();
-    for p in primes.skip(999999).take(1) {
-        println!("{}", p);
-    }
+    let now = Instant::now();
+    let primes = &mut Primes::new();
+    let p = primes.skip(999999).next().unwrap();
+    let t = now.elapsed().as_millis();
+    println!("Millionth prime: {}", p);
+    println!("Compute time:    {}ms", t);
 }
