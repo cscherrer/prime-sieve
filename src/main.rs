@@ -1,7 +1,7 @@
-use std::time::Instant;
-use std::collections::VecDeque;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+use std::collections::VecDeque;
+use std::time::Instant;
 
 // A "filter" (nothing official here, just sounds good to me) is a sequence of
 // multiples of some prime. In the Sieve of Eratosthenes, it's the sequence of
@@ -34,8 +34,10 @@ impl Filter {
 
 impl Ord for Filter {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.state.cmp(&self.state)
-        .then_with(|| self.base.cmp(&other.base))
+        other
+            .state
+            .cmp(&self.state)
+            .then_with(|| self.base.cmp(&other.base))
     }
 }
 
@@ -44,10 +46,6 @@ impl PartialOrd for Filter {
         Some(self.cmp(other))
     }
 }
-
-
-
-
 
 // Naively we'd check every integer. But we can avoid checking even numbers by
 // instead adding 2 at each step. To also avoid checking multiples of 3, we'd
@@ -62,15 +60,14 @@ impl PartialOrd for Filter {
 //
 // We use a wheel of size 48, which allows us to avoid checking multiples of 2,
 // 3, 5, and 7.
-const WHEEL_STATES: [u64; 48] = 
-    [ 2, 4, 2, 4, 6, 2, 6, 4, 2,  4, 6,  6
-    , 2, 6, 4, 2, 6, 4, 6, 8, 4,  2, 4,  2
-    , 4, 8, 6, 4, 6, 2, 4, 6, 2,  6, 6,  4
-    , 2, 4, 6, 2, 6, 4, 2, 4, 2, 10, 2, 10];
+const WHEEL_STATES: [u64; 48] = [
+    2, 4, 2, 4, 6, 2, 6, 4, 2, 4, 6, 6, 2, 6, 4, 2, 6, 4, 6, 8, 4, 2, 4, 2, 4, 8, 6, 4, 6, 2, 4, 6,
+    2, 6, 6, 4, 2, 4, 6, 2, 6, 4, 2, 4, 2, 10, 2, 10,
+];
 
 struct Wheel {
     index: usize,
-    state: u64
+    state: u64,
 }
 
 impl Wheel {
@@ -78,7 +75,7 @@ impl Wheel {
         // Hack to make sure we start at 11 with index 0
         Wheel {
             index: 47,
-            state: 1        
+            state: 1,
         }
     }
 
@@ -99,7 +96,7 @@ const SMALL_PRIMES: [u64; 4] = [2, 3, 5, 7];
 
 // The BiggerPrimes struct is an iterator over prime numbers. It maintains a list of
 // active filters, and a queue of filters (really a VecDeque) that are waiting
-// to be activated. 
+// to be activated.
 //
 // This queue is helpful because it's inefficient to constantly search a filter
 // we know won't be useful until we're at the square of its base
@@ -109,13 +106,12 @@ struct BiggerPrimes {
     queued_filters: VecDeque<Filter>,
 }
 
-
 impl BiggerPrimes {
     pub fn new() -> BiggerPrimes {
         BiggerPrimes {
             state: Wheel::new(),
             active_filters: BinaryHeap::new(),
-            queued_filters: VecDeque::new()
+            queued_filters: VecDeque::new(),
         }
     }
 
@@ -129,13 +125,13 @@ impl BiggerPrimes {
                     let mut f = self.active_filters.pop().unwrap();
                     f.step();
                     self.active_filters.push(f);
-                },
+                }
                 x if x == n => {
                     return None;
-                },
-                _ => break
+                }
+                _ => break,
             }
-        } 
+        }
 
         // Update queued filters. The first entry is always p^2, so at most one will need updating
         if n == self.queued_filters.front().map(|f| f.state).unwrap_or(0) {
@@ -143,7 +139,6 @@ impl BiggerPrimes {
                 .push(self.queued_filters.pop_front().unwrap());
             return None;
         }
-
 
         // If we reach this point, we know we're at a prime number. So queue a
         // new filter and return a Some
