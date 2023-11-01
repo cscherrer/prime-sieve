@@ -1,5 +1,7 @@
 use std::time::Instant;
 use std::collections::VecDeque;
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 
 // A "filter" (nothing official here, just sounds good to me) is a sequence of
 // multiples of some prime. In the Sieve of Eratosthenes, it's the sequence of
@@ -7,6 +9,7 @@ use std::collections::VecDeque;
 //
 // This could easily be made an Iterator, but we don't use that functionality so
 // we leave it out.
+#[derive(Copy, Clone, Eq, PartialEq)]
 struct Filter {
     base: u64,
     state: u64,
@@ -27,14 +30,24 @@ impl Filter {
         self.state += self.base;
         self.state
     }
+}
 
-    fn query(&mut self, n: u64) -> bool {
-        while self.state < n {
-            self.step();
-        }
-        self.state == n
+impl Ord for Filter {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.state.cmp(&self.state)
+        .then_with(|| self.base.cmp(&other.base))
     }
 }
+
+impl PartialOrd for Filter {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+
+
+
 
 // Naively we'd check every integer. But we can avoid checking even numbers by
 // instead adding 2 at each step. To also avoid checking multiples of 3, we'd
@@ -62,9 +75,10 @@ struct Wheel {
 
 impl Wheel {
     fn new() -> Wheel {
+        // Hack to make sure we start at 11 with index 0
         Wheel {
             index: 47,
-            state: 1
+            state: 1        
         }
     }
 
@@ -91,7 +105,7 @@ const SMALL_PRIMES: [u64; 4] = [2, 3, 5, 7];
 // we know won't be useful until we're at the square of its base
 struct BiggerPrimes {
     state: Wheel,
-    active_filters: Vec<Filter>,
+    active_filters: BinaryHeap<Filter>,
     queued_filters: VecDeque<Filter>,
 }
 
@@ -100,25 +114,36 @@ impl BiggerPrimes {
     pub fn new() -> BiggerPrimes {
         BiggerPrimes {
             state: Wheel::new(),
-            active_filters: Vec::new(),
+            active_filters: BinaryHeap::new(),
             queued_filters: VecDeque::new()
         }
     }
 
     fn step(&mut self) -> Option<u64> {
         let n = self.state.next();
-        
-        // If any active filter matches, we're not prime
-        if self.active_filters.iter_mut().any(|f| f.query(n)) {
-            return None;
-        }
 
-        // If the next queued filter is ready, activate it
+        // If any active filter matches, we're not prime
+        while let Some(f) = self.active_filters.peek() {
+            match f.state {
+                x if x < n => {
+                    let mut f = self.active_filters.pop().unwrap();
+                    f.step();
+                    self.active_filters.push(f);
+                },
+                x if x == n => {
+                    return None;
+                },
+                _ => break
+            }
+        } 
+
+        // Update queued filters. The first entry is always p^2, so at most one will need updating
         if n == self.queued_filters.front().map(|f| f.state).unwrap_or(0) {
             self.active_filters
                 .push(self.queued_filters.pop_front().unwrap());
             return None;
         }
+
 
         // If we reach this point, we know we're at a prime number. So queue a
         // new filter and return a Some
@@ -165,6 +190,9 @@ impl Iterator for Primes {
 fn main() {
     let primes = &mut Primes::new();
     let now = Instant::now();
+    // for p in primes.take(10) {
+    //     println!("{}", p);
+    // }
     let p = primes.nth(999999).unwrap();
     let t = now.elapsed().as_millis();
     println!("Millionth prime: {}", p);
