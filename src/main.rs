@@ -129,7 +129,9 @@ impl BiggerPrimes {
                 x if x == n => {
                     return None;
                 }
-                _ => break,
+                _ => {
+                    break;
+                }
             }
         }
 
