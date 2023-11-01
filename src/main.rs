@@ -1,5 +1,5 @@
+use priority_queue::PriorityQueue;
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
 use std::collections::VecDeque;
 use std::time::Instant;
 
@@ -9,7 +9,7 @@ use std::time::Instant;
 //
 // This could easily be made an Iterator, but we don't use that functionality so
 // we leave it out.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Hash, Copy, Clone, Eq, PartialEq)]
 struct Filter {
     base: u64,
     state: u64,
@@ -102,7 +102,7 @@ const SMALL_PRIMES: [u64; 4] = [2, 3, 5, 7];
 // we know won't be useful until we're at the square of its base
 struct BiggerPrimes {
     state: Wheel,
-    active_filters: BinaryHeap<Filter>,
+    active_filters: PriorityQueue<Filter, Filter>,
     queued_filters: VecDeque<Filter>,
 }
 
@@ -110,7 +110,7 @@ impl BiggerPrimes {
     pub fn new() -> BiggerPrimes {
         BiggerPrimes {
             state: Wheel::new(),
-            active_filters: BinaryHeap::new(),
+            active_filters: PriorityQueue::new(),
             queued_filters: VecDeque::new(),
         }
     }
@@ -119,12 +119,12 @@ impl BiggerPrimes {
         let n = self.state.next();
 
         // If any active filter matches, we're not prime
-        while let Some(f) = self.active_filters.peek() {
+        while let Some((f, _)) = self.active_filters.peek() {
             match f.state {
                 x if x < n => {
-                    let mut f = self.active_filters.pop().unwrap();
+                    let mut f = self.active_filters.pop().unwrap().0;
                     f.step();
-                    self.active_filters.push(f);
+                    self.active_filters.push(f,f);
                 }
                 x if x == n => {
                     return None;
@@ -137,8 +137,9 @@ impl BiggerPrimes {
 
         // Update queued filters. The first entry is always p^2, so at most one will need updating
         if n == self.queued_filters.front().map(|f| f.state).unwrap_or(0) {
+            let f = self.queued_filters.pop_front().unwrap();
             self.active_filters
-                .push(self.queued_filters.pop_front().unwrap());
+                .push(f,f);
             return None;
         }
 
