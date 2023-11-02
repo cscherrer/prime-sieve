@@ -1,7 +1,8 @@
+use core::hash::Hash;
 use priority_queue::PriorityQueue;
+use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::time::Instant;
-use std::cmp::Reverse;
 
 // A "filter" (nothing official here, just sounds good to me) is a sequence of
 // multiples of some prime. In the Sieve of Eratosthenes, it's the sequence of
@@ -9,7 +10,7 @@ use std::cmp::Reverse;
 //
 // This could easily be made an Iterator, but we don't use that functionality so
 // we leave it out.
-#[derive(Hash, Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone)]
 struct Filter {
     base: u64,
     state: u64,
@@ -26,6 +27,23 @@ impl Filter {
         }
     }
 }
+
+// We need to be able to change the state in place without affecting the lookup
+// Hash or Eq. But we know that the base fields will all be unique, so it's
+// enough to hash and compare based on those
+impl Hash for Filter {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.base.hash(state)
+    }
+}
+
+impl PartialEq for Filter {
+    fn eq(&self, other: &Self) -> bool {
+        self.base == other.base
+    }
+}
+
+impl Eq for Filter {}
 
 // Naively we'd check every integer. But we can avoid checking even numbers by
 // instead adding 2 at each step. To also avoid checking multiples of 3, we'd
@@ -99,12 +117,15 @@ impl BiggerPrimes {
         let n = self.state.next();
 
         // If any active filter matches, we're not prime
-        while let Some((ref_f, _)) = self.active_filters.peek() {
+
+        // Thanks to @semicoleon for the fix:
+        // https://users.rust-lang.org/t/using-priority-queue-change-priority/102000/4
+        while let Some((ref_f, _)) = self.active_filters.peek_mut() {
             match ref_f.state {
                 x if x < n => {
-                    let mut f = self.active_filters.pop().unwrap().0;
-                    f.state += f.base;
-                    self.active_filters.push(f, Reverse(f.state));
+                    ref_f.state += ref_f.base;
+                    let f = *ref_f;
+                    self.active_filters.change_priority(&f, Reverse(f.state));
                 }
                 x if x == n => {
                     return None;
