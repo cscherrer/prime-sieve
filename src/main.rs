@@ -1,5 +1,4 @@
 use priority_queue::PriorityQueue;
-use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::time::Instant;
 
@@ -32,20 +31,6 @@ impl Filter {
     }
 }
 
-impl Ord for Filter {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other
-            .state
-            .cmp(&self.state)
-            .then_with(|| self.base.cmp(&other.base))
-    }
-}
-
-impl PartialOrd for Filter {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
 
 // Naively we'd check every integer. But we can avoid checking even numbers by
 // instead adding 2 at each step. To also avoid checking multiples of 3, we'd
@@ -102,7 +87,7 @@ const SMALL_PRIMES: [u64; 4] = [2, 3, 5, 7];
 // we know won't be useful until we're at the square of its base
 struct BiggerPrimes {
     state: Wheel,
-    active_filters: PriorityQueue<Filter, Filter>,
+    active_filters: PriorityQueue<Filter, u64>,
     queued_filters: VecDeque<Filter>,
 }
 
@@ -124,7 +109,7 @@ impl BiggerPrimes {
                 x if x < n => {
                     let mut f = self.active_filters.pop().unwrap().0;
                     f.step();
-                    self.active_filters.push(f,f);
+                    self.active_filters.push(f, f.state.wrapping_neg());
                 }
                 x if x == n => {
                     return None;
@@ -138,8 +123,7 @@ impl BiggerPrimes {
         // Update queued filters. The first entry is always p^2, so at most one will need updating
         if n == self.queued_filters.front().map(|f| f.state).unwrap_or(0) {
             let f = self.queued_filters.pop_front().unwrap();
-            self.active_filters
-                .push(f,f);
+            self.active_filters.push(f, f.state.wrapping_neg());
             return None;
         }
 
