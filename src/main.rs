@@ -1,6 +1,7 @@
 use priority_queue::PriorityQueue;
 use std::collections::VecDeque;
 use std::time::Instant;
+use std::cmp::Reverse;
 
 // A "filter" (nothing official here, just sounds good to me) is a sequence of
 // multiples of some prime. In the Sieve of Eratosthenes, it's the sequence of
@@ -81,7 +82,7 @@ const SMALL_PRIMES: [u64; 4] = [2, 3, 5, 7];
 // we know won't be useful until we're at the square of its base
 struct BiggerPrimes {
     state: Wheel,
-    active_filters: PriorityQueue<Filter, u64>,
+    active_filters: PriorityQueue<Filter, Reverse<u64>>,
     queued_filters: VecDeque<Filter>,
 }
 
@@ -103,7 +104,7 @@ impl BiggerPrimes {
                 x if x < n => {
                     let mut f = self.active_filters.pop().unwrap().0;
                     f.state += f.base;
-                    self.active_filters.push(f, f.state.wrapping_neg());
+                    self.active_filters.push(f, Reverse(f.state));
                 }
                 x if x == n => {
                     return None;
@@ -117,7 +118,7 @@ impl BiggerPrimes {
         // Update queued filters. The first entry is always p^2, so at most one will need updating
         if n == self.queued_filters.front().map(|f| f.state).unwrap_or(0) {
             let f = self.queued_filters.pop_front().unwrap();
-            self.active_filters.push(f, f.state.wrapping_neg());
+            self.active_filters.push(f, Reverse(f.state));
             return None;
         }
 
