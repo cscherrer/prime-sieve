@@ -31,7 +31,6 @@ impl Filter {
     }
 }
 
-
 // Naively we'd check every integer. But we can avoid checking even numbers by
 // instead adding 2 at each step. To also avoid checking multiples of 3, we'd
 // alternate adding 2 and 4.
