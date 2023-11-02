@@ -24,11 +24,6 @@ impl Filter {
             state: base * base,
         }
     }
-
-    fn step(&mut self) -> u64 {
-        self.state += self.base;
-        self.state
-    }
 }
 
 // Naively we'd check every integer. But we can avoid checking even numbers by
@@ -103,11 +98,11 @@ impl BiggerPrimes {
         let n = self.state.next();
 
         // If any active filter matches, we're not prime
-        while let Some((f, _)) = self.active_filters.peek() {
-            match f.state {
+        while let Some((ref_f, _)) = self.active_filters.peek() {
+            match ref_f.state {
                 x if x < n => {
                     let mut f = self.active_filters.pop().unwrap().0;
-                    f.step();
+                    f.state += f.base;
                     self.active_filters.push(f, f.state.wrapping_neg());
                 }
                 x if x == n => {
